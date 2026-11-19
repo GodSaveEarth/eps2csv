@@ -24,7 +24,6 @@
 
 ## Нужные программы
 ```
-ImageMagick - ImageMagick-7.1.2-33-Q8-x86-dll.exe
 Ghostscript - gs10080w32.exe
 dmtxread.exe и gawk.exe - выложены в этом репо
 ```
