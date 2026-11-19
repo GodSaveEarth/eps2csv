@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Конвертер EPS этикеток в CSV для честного знака онлайн</title>
+    <meta name="description" content="Онлайн конвертер для преобразования ZIP-архивов с EPS файлами в коды маркировки в текстовый формат CSV. Распознавание DataMatrix кодов, сортировка GTIN, криптохвосты.">
+    <meta name="keywords" content="конвертер маркировки, EPS в CSV, DataMatrix коды, GS1 DataMatrix, маркировка товаров, этикетки, криптохвост, GTIN, онлайн конвертер, распознавание кодов">
+    
+    <style>
+        :root {
+            --primary: #3448c5;
+            --primary-hover: #263593;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .upload-container {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            max-width: 480px;
+            border: 1px solid var(--border);
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        input[type="text"], input[type="file"], input[type="email"]  {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+
+        input[type="file"] {
+            padding: 8px;
+            background: #f1f5f9;
+            cursor: pointer;
+        }
+
+         input[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        #status-message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        .success { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .info { background-color: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+    </style>
+</head>
+<body>
+
+<div class="upload-container">
+    <h2>Сконвертировать EPS в CSV</h2>
+    
+    Мой бесплатный сервис поможет вам перевести EPS коды из "Честного знака" в текстовый вид. Полностью, включая крипто-хвост.
+
+    <form id="form">
+        <div class="form-group">
+            <label for="email">Ваш емайл (туда приедет файл с результатом)</label>
+            <input type="email" id="email" required="1" placeholder="user@yandex.ru">
+        </div>
+
+        <div class="form-group">
+            <label for="file-picker">ZIP-архив с EPS-файлами</label>
+            <input type="file" id="file-picker" accept=".zip,application/zip,application/x-zip-compressed" required="1">
+            <p>Принимаем только ZIP-файл размером до 10 мбайт. 
+        </div>
+
+        <input type="submit" id="upload-btn" value="Отправить">
+        <div id="status-message"></div>
+        </form>
+</div>
+
+<script>
+    const filePicker = document.getElementById('file-picker');
+    const uploadBtn = document.getElementById('upload-btn');
+    const statusMsg = document.getElementById('status-message');
+
+    function showStatus(text, type) {
+        statusMsg.innerText = text;
+        statusMsg.className = type;
+        statusMsg.style.display = 'block';
+    }
+
+    document.getElementById('form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const cloudName = "imghost";
+        const uploadPreset = "eps2csv";
+        const userEmail = document.getElementById('email').value.trim();
+        
+        if (filePicker.files.length === 0) {
+            showStatus('Выберите zip-файл для загрузки', 'error');
+            return;
+        }
+
+        const file = filePicker.files[0];
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+        formData.append('context', `email=${userEmail}`);
+
+        try {
+            uploadBtn.disabled = true;
+            showStatus('Загрузка...', 'info');
+
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error?.message || 'Ошибка при загрузке');
+            }
+
+            console.log('Ответ сервера:', data);
+            showStatus(`Файл загружен!  URL: ${data.secure_url}`, 'success');
+            
+        } catch (error) {
+            console.error(error);
+            showStatus(`Ошибка: ${error.message}`, 'error');
+        } finally {
+            uploadBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
