@@ -1,143 +1,90 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-
-<link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>Конвертер EPS этикеток в CSV для честного знака онлайн</title>
-    <meta name="description" content="Онлайн конвертер для преобразования ZIP-архивов с EPS файлами в коды маркировки в текстовый формат CSV. Распознавание DataMatrix кодов, сортировка GTIN, криптохвосты.">
-    <meta name="keywords" content="конвертер маркировки, EPS в CSV, DataMatrix коды, GS1 DataMatrix, маркировка товаров, этикетки, криптохвост, GTIN, онлайн конвертер, распознавание кодов">
-    
-    <style>
-
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Чтение кода из EPS</title>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  body { font: 15px system-ui, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  textarea { width: 100%; height: 260px; font: 13px monospace; box-sizing: border-box; }
+  .err { color: #b00; }
+  button { margin-top: 8px; }
+</style>
 </head>
-
-
-
-
 <body>
-
-
- 
-    <hgroup>
-      <img src="assets/hero.jpg">
-      <h1>Бесплатаная конвертация EPS в CSV</h1>
-      <p>Сервис для перевода EPS-файлов из "Честного знака" в текстовый вид. Переведет ваши QR-коды маркировки в текстовый вид полностью, включая крипто-хвост.</p>
-    </hgroup>
-
-        <h2>Инструкция по применению</h2>
-        <p>1. Скачайте ваши EPS с "Честного знака" - получится zip-архив. Загрузите этот архив в форму ниже. Принимается один zip-архив за раз. </p>
-        <p>2. Сервис распознает каждый код и переведет его в текстовый вид. Обычно обработка занимает несколько минут, иногда до часа.   </p>
-        <p>3. После обработки, вы получите на почту письмо с приложенным текстовым файлом. К письму будет приложен файл с вашими кодами. </p>
-        <p>4. Если что-то не сработало - напишите мне на почту, приложите ваш файл, проверим вручную. </p>
-   
-
-      <section>
-        <form id="form">
-            <h3>Загрузка файла для конвертации</h3>
-
-            <label for="email">Ваш емайл (туда приедет файл с результатом):</label>
-            <input type="email" id="email" required placeholder="user@yandex.ru">
-            <br/><br/>
-            
-            <label for="file-picker">ZIP-архив с EPS-файлами:</label>
-            <input type="file" id="file-picker" accept=".zip,application/zip,application/x-zip-compressed" required>
-            <br/><br/>
-
-            
-            <input type="submit" id="upload-btn" value="Загрузить и сконвертировать">
-            <br/>
-             <small>За раз примем только один ZIP-файл размером до 10 Мб. </small>
-
-            <div id="status-message" class="notice" style="display:none"></div>
-
-        </form>
-      </section>
-
-      <p><center>Емайл автора: z555333@gmail.com</center></p>
-
-
-
-
-
+<h1>Чтение QR / DataMatrix из EPS</h1>
+<p>Выберите zip-архив с .eps (или сами .eps; Barcode4J и подобные: квадраты командой <code>rf</code>).
+Результат — как после сканера: по строке на файл (по порядку имён), разделитель GS (0x1D) сохраняется.</p>
+<input type="file" id="files" accept=".zip,.eps,.ps" multiple>
+<p id="status"></p>
+<textarea id="out" readonly></textarea>
+<br><button id="save" disabled>Скачать .txt</button>
 <script>
-  const form = document.getElementById('form');
+// "x y w h rf" — верхний левый угол модуля (PostScript, ось y вверх) и его размер
+function epsToLuminance(text) {
+  const rects = [...text.matchAll(/(-?[\d.]+)\s+(-?[\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rf\b/g)]
+    .map(m => m.slice(1, 5).map(Number));
+  if (!rects.length) throw new Error('в файле нет модулей (команды rf)');
+  let mod = Infinity, minX = Infinity, maxY = -Infinity;
+  for (const r of rects) { mod = Math.min(mod, r[2]); minX = Math.min(minX, r[0]); maxY = Math.max(maxY, r[1]); }
+  const cells = rects.map(([x, y, w, h]) => [Math.round((x - minX) / mod), Math.round((maxY - y) / mod),
+    Math.round(w / mod), Math.round(h / mod)]);
+  let cols = 0, rows = 0;
+  for (const c of cells) { cols = Math.max(cols, c[0] + c[2]); rows = Math.max(rows, c[1] + c[3]); }
+  const px = 8, quiet = 4, W = (cols + 2 * quiet) * px, H = (rows + 2 * quiet) * px;
+  const lum = new Uint8ClampedArray(W * H).fill(255);
+  for (const [c, r, w, h] of cells)
+    for (let y = (r + quiet) * px; y < (r + h + quiet) * px; y++)
+      lum.fill(0, y * W + (c + quiet) * px, y * W + (c + w + quiet) * px);
+  return { lum, W, H };
+}
 
-  const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 МБ
+const hints = new Map([[ZXing.DecodeHintType.PURE_BARCODE, true], [ZXing.DecodeHintType.TRY_HARDER, true]]);
+function decodeEps(text) {
+  const { lum, W, H } = epsToLuminance(text);
+  const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.RGBLuminanceSource(lum, W, H)));
+  return new ZXing.MultiFormatReader().decode(bitmap, hints).getText();
+}
 
-  function showStatus(text) {
-    const statusMsg = document.getElementById('status-message');
-    statusMsg.innerHTML = text;
-    statusMsg.style.display = 'block';
+// [{name, text()}] из выбранных файлов: zip раскрывается, eps берутся как есть
+async function collectEps(files) {
+  const list = [];
+  for (const f of files) {
+    if (!/\.zip$/i.test(f.name)) { list.push({ name: f.name, text: () => f.text() }); continue; }
+    const zip = await JSZip.loadAsync(f);
+    zip.forEach((path, entry) => {
+      if (!entry.dir && /\.e?ps$/i.test(path) && !path.startsWith('__MACOSX/'))
+        list.push({ name: path, text: () => entry.async('string') });
+    });
   }
+  return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+}
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const cloudName = "imghost";
-    const uploadPreset = "eps2csv";
-    const userEmail = document.getElementById('email').value.trim();
-    const filePicker = document.getElementById('file-picker');
-
-    if (filePicker.files.length === 0) {
-      showStatus('Выберите zip-файл для загрузки');
-      return;
-    }
-
-    const file = filePicker.files[0];
-
-    // Проверка размера до отправки
-    if (file.size > MAX_SIZE_BYTES) {
-      showStatus('Файл слишком большой. Максимальный размер — 10 МБ.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', uploadPreset);
-    formData.append('context', `email=${userEmail}`);
-
-    try {
-      uploadBtn.disabled = true;
-      showStatus('Загрузка...');
-
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
-        method: 'POST',
-        body: formData
-      });
-
-      // Читаем как текст, чтобы не упасть на JSON.parse при HTML-ошибке
-      const rawText = await response.text();
-      let data = {};
-
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseErr) {
-        console.error('Cloudinary вернул не JSON:', response.status, rawText);
-        throw new Error(`Сервер вернул некорректный ответ (HTTP ${response.status}). Проверьте настройки Cloudinary или размер файла.`);
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || `Ошибка загрузки (HTTP ${response.status})`);
-      }
-
-      console.log('Ответ сервера:', data);
-      showStatus('<h5>Файл загружен и уже обрабатывается!</h5>Больше ничего делать не надо, дождитесь письма  с результатом.');
-      form.reset();
-
-    } catch (error) {
-      console.error(error);
-      showStatus(`<h5>Ошибка:</h5> ${error.message}`);
-    } finally {
-      uploadBtn.disabled = false;
-    }
-  });
+let lines = [];
+const out = document.getElementById('out'), status = document.getElementById('status'), save = document.getElementById('save');
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+document.getElementById('files').addEventListener('change', async e => {
+  lines = []; const errors = [];
+  out.value = ''; save.disabled = true;
+  let list;
+  try { list = await collectEps(e.target.files); }
+  catch (err) { status.innerHTML = `<div class="err">Не удалось открыть архив: ${esc(err.message)}</div>`; return; }
+  for (const [i, f] of list.entries()) {
+    try { lines.push(decodeEps(await f.text())); }
+    catch (err) { errors.push(`${f.name}: ${err.message || 'код не распознан'}`); }
+    if (i % 50 === 0) { status.textContent = `Обработано ${i + 1} из ${list.length}…`; await new Promise(r => setTimeout(r)); }
+  }
+  out.value = lines.join('\n').replaceAll('\x1d', '␝'); // ␝ — только для показа, в файле настоящий GS
+  status.innerHTML = `Распознано: ${lines.length} из ${list.length}` + errors.map(s => `<div class="err">${esc(s)}</div>`).join('');
+  save.disabled = !lines.length;
+});
+save.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/plain' }));
+  a.download = 'codes.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
 </script>
-
-
-
 </body>
 </html>
