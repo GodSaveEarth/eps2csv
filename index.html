@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Чтение кода из EPS</title>
+<title>Конвертер кодов "Честный знак" из EPS в CSV</title>
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -14,10 +14,13 @@
 </style>
 </head>
 <body>
-<h1>Чтение QR / DataMatrix из EPS</h1>
-<p>Выберите zip-архив с .eps (или сами .eps; Barcode4J и подобные: квадраты командой <code>rf</code>).
-Результат — как после сканера: по строке на файл (по порядку имён), разделитель GS (0x1D) сохраняется.</p>
-<input type="file" id="files" accept=".zip,.eps,.ps" multiple>
+<h1>Конвертер кодов "Честный знак" из EPS в CSV</h1>
+<p>Бесплатно переведет ваши Datamatrix-коды в текстовый вид. Конвертация проходит на вашем компьютере, файлы не утекают на наш сервер.</p>
+<p>Отчеты о проблемах присылать на <a href="https://github.com/GodSaveEarth/eps2csv">github</a>.</p>
+<br><br>
+<p>Выберите zip-архив с .eps (или сами файлы .eps).
+После обработки вы получите список ваших кодов в полном виде с "криптохвостом". Результат — как после сканера: по строке на файл (по порядку имён), разделитель GS (0x1D) сохраняется.</p>
+<input type="file" id="files" accept=".zip,.eps" multiple>
 <p id="status"></p>
 <textarea id="out" readonly></textarea>
 <br><button id="save" disabled>Скачать .txt</button>
